@@ -37,7 +37,7 @@ import requests
 import time
 import re
 import sys
-from controller import bots, reply
+from controller import bots, reply, reply_direct
 
 # 匹配自己名字的正则
 self_match_pattern = re.compile('<a.*@小黄鸡.*</a>')
@@ -68,6 +68,7 @@ def parseNotification(notification):
 
 def handle(bot, notification):
     data = parseNotification(notification)
+    print data
 
     print time.strftime('%Y-%m-%d %I:%M:%S', time.localtime(time.time())), 'got notification'
     ntype = data['ntype']
@@ -76,9 +77,19 @@ def handle(bot, notification):
         # 进入消息队列
         q.enqueue(reply, data)
 
+def handle_timeline(bot, data):
+    interest = {
+            '229446762': 1,
+            '472085551': 1,
+            '442901199': 1
+            }
+    if data['data']['owner_id'] in interest: #== '472085551':
+        print time.strftime('%Y-%m-%d %I:%M:%S', time.localtime(time.time())), 'got new status of interest'
+        q.enqueue(reply_direct, data)
 
 # 得到人人上的通知，处理之
 def process(bot, just_clear=False):
+    #print "process notification"
     notifications = bot.getNotifications()
 
     for notification in notifications:
@@ -99,18 +110,45 @@ def process(bot, just_clear=False):
             handle(bot, notification)
             redis_conn.incr('comment_count')
         except Exception, e:
+            print "Exception in 'process': %s" % e
+
+def process_timeline(bot):
+    print "process timeline"
+    h = bot.home_timeline()
+    #print len(h)
+    for s in h:
+        #print s
+        if redis_conn.get(s['data']['doing_id']):
+            #print "processed"
+            continue
+
+        try:
+            redis_conn.set(s['data']['doing_id'], True)
+            handle_timeline(bot, s)
+            redis_conn.incr('comment_count')
+        except Exception, e:
             print e
 
-        print ''
 
 def main():
     while True:
         try:
             map(process, bots)
+            map(process_timeline, bots)
+            import time
+            time.sleep(10)
         except KeyboardInterrupt:
             sys.exit()
-        except:
+        except Exception, e:
+            # The exception, 
+            #Traceback (most recent call last):
+            #  File "main.py", line 146, in <module>
+            #    main()
+            #  File "main.py", line 143, in main
+            #    raise e
+            #UnboundLocalError: local variable 'result' referenced before assignment
             pass
+            #raise e
 
 if __name__ == '__main__':
     main()

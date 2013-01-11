@@ -34,6 +34,7 @@ from urlparse import urlparse, parse_qsl
 from pyquery import PyQuery
 from ntype import NTYPES
 from encrypt import encryptString
+import pickle
 import sys
 
 
@@ -46,10 +47,34 @@ class RenRen:
         if email and pwd:
             self.login(email, pwd)
 
+    def save(self, path = None):
+        if path is None:
+            path = self.email + ".info.pickle"
+        obj = {'cookie': self.session.cookies, 'token': self.token}
+        pickle.dump(obj, open(path, 'w'))
+        return True
+
+
+    def load(self, path = None):
+        if path is None:
+            path = self.email + ".info.pickle"
+        try:
+            obj = pickle.load(open(path, 'r'))
+            self.session.cookies = obj['cookie']
+            self.token = obj['token']
+            self.getToken()
+            if self.token['requestToken'] != '':
+                return True
+            else:
+                return False
+        except Exception, e:
+            return False
+
     def loginByCookie(self, cookie_path):
         with open(cookie_path) as fp:
             cookie_str = fp.read()
             cookie_dict = dict([v.split('=', 1) for v in cookie_str.strip().split(';')])
+            print cookie_dict
             self.session.cookies = requests.utils.cookiejar_from_dict(cookie_dict)
 
         self.getToken()
@@ -57,10 +82,15 @@ class RenRen:
     def saveCookie(self, cookie_path):
         with open(cookie_path, 'w') as fp:
             cookie_dict = requests.utils.dict_from_cookiejar(self.session.cookies)
-            cookie_str = '; '.join([k + '=' + v for k, v in cookie_dict.iteritems()])
+            print cookie_dict
+            cookie_str = ';'.join([k + '=' + v for k, v in cookie_dict.iteritems()])
             fp.write(cookie_str)
 
     def login(self, email, pwd):
+        self.email = email
+        if self.load():
+            return
+
         key = self.getEncryptKey()
 
         if self.getShowCaptcha(email) == 1:
@@ -84,11 +114,13 @@ class RenRen:
         url = 'http://www.renren.com/ajaxLogin/login?1=1&uniqueTimestamp=%f' % random.random()
         r = self.post(url, data)
         result = r.json()
+        print result
         if result['code']:
             print 'login successfully'
             self.email = email
             r = self.get(result['homeUrl'])
             self.getToken(r.text)
+            self.save()
         else:
             print 'login error', r.text
 
@@ -116,7 +148,7 @@ class RenRen:
     def getToken(self, html=''):
         p = re.compile("get_check:'(.*)',get_check_x:'(.*)',env")
 
-        if not html:
+        if not html or html == '':
             r = self.get('http://www.renren.com')
             html = r.text
 
@@ -125,6 +157,50 @@ class RenRen:
             'requestToken': result.group(1),
             '_rtk': result.group(2)
         }
+
+    def _parse_timeline(self, text):
+        dom = PyQuery(text)
+        articles = dom.children()
+        s_list = []
+        for a in articles:
+            aa = PyQuery(a)
+            try:
+                f = {}
+                f['text'] = PyQuery(aa.children()[1]).text()
+                try:
+                    # This is a share item
+                    f['reply'] = json.loads(PyQuery(PyQuery(aa.children()[3]).children()[3]).text())
+                    #print "a share item"
+                except IndexError:
+                    # This is a status item
+                    try:
+                        f['reply'] = json.loads(PyQuery(PyQuery(aa.children()[2]).children()[3]).text())
+                        #print "a status item"
+                    except IndexError:
+                        print "un recognizable feeds: %s" % f['text']
+                if 'reply' in f:
+                    s_list.append(f)
+            except Exception, e:
+                print "Exception: %s" % e
+                pass
+
+        for s in s_list:
+            s['data'] = {
+                    'doing_id': s['reply']['cid'], 
+                    'owner_id': s['reply']['oid'],
+                    'type_num': s['reply']['typeNum']
+                    }
+
+        return s_list
+        #return text
+
+
+    def home_timeline(self, page = None):
+        if page:
+            r = self.post('http://guide.renren.com/feedguide.do', {'p':page})
+        else:
+            r = self.post('http://guide.renren.com/feedguide.do')
+        return self._parse_timeline(r.text)
 
     def request(self, url, method, data={}):
         if data:
@@ -180,6 +256,76 @@ class RenRen:
         comment = filter(lambda comment: comment['id'] == comment_id, comments)
         return comment[0] if comment else None
 
+    def addCommentGeneral(self, data):
+        url = 'http://status.renren.com/feedcommentreply.do'
+        #url = 'http://page.renren.com/doing/reply'
+
+        # 'stype' is not mandatory
+        # 't'=4 is for shares
+        # 't'=3 is for status
+        # t must exist
+        payloads = {
+            'rpLayer': 0,
+            'source': data['doing_id'],
+            'owner': data['owner_id'],
+            'c': data['message']
+        }
+        if data.get('type_num', None):
+            payloads['t'] = data.get('type_num')
+
+        if data.get('reply_id', None):
+            payloads.update({
+                'rpLayer': 1,
+                'replyTo': data['author_id'],
+                'replyName': data['author_name'],
+                'secondaryReplyId': data['reply_id'],
+                'c': '回复%s：%s' % (data['author_name'].encode('utf-8'), data['message'])
+            })
+
+        print payloads
+        print self.email, 'going to send a comment: ', payloads['c']
+
+        r = self.post(url, payloads)
+        r.raise_for_status()
+
+        print 'comment sent', r.json()
+        return r.json()
+
+    def addCommentShare(self, data):
+        url = 'http://status.renren.com/feedcommentreply.do'
+        #url = 'http://page.renren.com/doing/reply'
+
+        # 'stype' is not mandatory
+        # 't'=4 is for shares
+        # 't'=3 is for status
+        # t must exist
+        payloads = {
+            't': 4,
+            #'stype': 103, 
+            'rpLayer': 0,
+            'source': data['doing_id'],
+            'owner': data['owner_id'],
+            'c': data['message']
+        }
+
+        if data.get('reply_id', None):
+            payloads.update({
+                'rpLayer': 1,
+                'replyTo': data['author_id'],
+                'replyName': data['author_name'],
+                'secondaryReplyId': data['reply_id'],
+                'c': '回复%s：%s' % (data['author_name'].encode('utf-8'), data['message'])
+            })
+
+        print payloads
+        print self.email, 'going to send a comment: ', payloads['c']
+
+        r = self.post(url, payloads)
+        r.raise_for_status()
+
+        print 'comment sent', r.json()
+        return r.json()
+
     def addComment(self, data):
         url = 'http://status.renren.com/feedcommentreply.do'
         #url = 'http://page.renren.com/doing/reply'
@@ -201,6 +347,7 @@ class RenRen:
                 'c': '回复%s：%s' % (data['author_name'].encode('utf-8'), data['message'])
             })
 
+        print payloads
         print self.email, 'going to send a comment: ', payloads['c']
 
         r = self.post(url, payloads)
@@ -215,9 +362,10 @@ class RenRen:
 
 if __name__ == '__main__':
     renren = RenRen()
-    renren.login('email', 'password')
+    #renren.login('email', 'password')
+    #renren.saveCookie('cookie.txt')
     #renren.loginByCookie('cookie.txt')
     info = renren.getUserInfo()
     print 'hello', info['hostname']
     #print renren.getNotifications()
-    renren.visit(328748051)
+    #renren.visit(328748051)
