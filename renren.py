@@ -50,7 +50,7 @@ class RenRen:
     def save(self, path = None):
         if path is None:
             path = self.email + ".info.pickle"
-        obj = {'cookie': self.session.cookies, 'token': self.token}
+        obj = {'cookie': self.session.cookies, 'token': self.token, 'info': self.info}
         pickle.dump(obj, open(path, 'w'))
         return True
 
@@ -62,6 +62,7 @@ class RenRen:
             obj = pickle.load(open(path, 'r'))
             self.session.cookies = obj['cookie']
             self.token = obj['token']
+            self.info = obj['info']
             self.getToken()
             if self.token['requestToken'] != '':
                 return True
@@ -119,6 +120,7 @@ class RenRen:
             print 'login successfully'
             self.email = email
             r = self.get(result['homeUrl'])
+            self.info = self.getUserInfo()
             self.getToken(r.text)
             self.save()
         else:
@@ -194,6 +196,10 @@ class RenRen:
         return s_list
         #return text
 
+    def update(self, text):
+        url_update = 'http://shell.renren.com/%s/status' % self.info['hostid']
+        r = self.post(url_update, {'content': text, 'hostid': self.info['hostid'], 'channel': 'renren'})
+        return r.json()
 
     def home_timeline(self, page = None):
         if page:
@@ -361,11 +367,17 @@ class RenRen:
         self.get('http://www.renren.com/' + str(uid) + '/profile')
 
 if __name__ == '__main__':
+    try:
+        from my_accounts import accounts
+    except:
+        print "please configure your renren account in 'my_account.py' first"
+        sys.exit(-1)
     renren = RenRen()
-    #renren.login('email', 'password')
+    renren.login(accounts[0][0], accounts[0][1])
     #renren.saveCookie('cookie.txt')
     #renren.loginByCookie('cookie.txt')
-    info = renren.getUserInfo()
-    print 'hello', info['hostname']
+    #info = renren.getUserInfo()
+    print renren.info
+    #print 'hello', info['hostname']
     #print renren.getNotifications()
     #renren.visit(328748051)
