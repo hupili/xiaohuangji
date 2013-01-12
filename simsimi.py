@@ -28,6 +28,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 import requests
 import cookielib
+import sys
 
 
 class SimSimi:
@@ -70,5 +71,9 @@ class SimSimi:
 
 if __name__ == '__main__':
     simi = SimSimi()
-    print simi.chat('最后一个问题')
+    while True:
+        sys.stdout.write('You:')
+        q = raw_input()
+        a = simi.chat(q)
+        print "Chick: %s" % a
     #simi.teach('一切的答案', '42')
