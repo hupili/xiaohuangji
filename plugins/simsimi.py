@@ -58,24 +58,56 @@ class SimSimi:
 
     def __init__(self):
 
-        self.headers = {
-            'Referer': 'http://www.simsimi.com/talk.htm'
-        }
+        #self.headers = {
+        #    #'Referer': 'http://www.simsimi.com/talk.htm?lc=ch',
+        #    'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux i686; rv:18.0) Gecko/20100101 Firefox/18.0', 
+        #    #'Accept': 'application/json, text/javascript, */*; q=0.01', 
+        #    'Accept-Language': 'en-US,en;q=0.5', 
+        #    'Accept-Encoding': 'gzip, deflate', 
+        #    #'Content-Type': 'application/json; charset=utf-8', 
+        #    #'X-Requested-With': 'XMLHttpRequest', 
+        #    'Connection': 'keep-alive'
+        #}
 
-        self.chat_url = 'http://www.simsimi.com/func/req?lc=ch&msg=%s'
+        self.session = requests.Session()
+
+        self.chat_url = 'http://www.simsimi.com/func/req?msg=%s&lc=ch'
         self.api_url = 'http://api.simsimi.com/request.p?key=%s&lc=ch&ft=1.0&text=%s'
 
         if not SIMSIMI_KEY:
             self.initSimSimiCookie()
 
+    def request(self, url, method, data={}):
+        #if data:
+        #    data.update({'Referer': 'http://www.simsimi.com/talk.htm?lc=ch'})
+
+        if method == 'get':
+            return self.session.get(url, data=data)
+        elif method == 'post':
+            return self.session.post(url, data=data)
+
+    def get(self, url, data={}):
+        return self.request(url, 'get', data)
+
+    def post(self, url, data={}):
+        return self.request(url, 'post', data)
+
     def initSimSimiCookie(self):
-        r = requests.get('http://www.simsimi.com/talk.htm')
-        self.chat_cookies = r.cookies
+        self.get('http://www.simsimi.com/talk.htm')
+        self.get('http://www.simsimi.com/talk.htm/func/langInfo')
+        self.get('http://www.simsimi.com/talk.htm/talk.htm?lc=ch')
+        #r = requests.get('http://www.simsimi.com/talk.htm')
+        #self.chat_cookies = r.cookies
+        #r = requests.get('http://www.simsimi.com/func/langInfo', headers=self.headers)
+        #self.chat_cookies = r.cookies
+        #r = requests.get('http://www.simsimi.com/talk.htm?lc=ch', cookies=self.chat_cookies, headers=self.headers)
+        #self.chat_cookies = r.cookies
 
     def getSimSimiResult(self, message, method='normal'):
         if method == 'normal':
-            r = requests.get(self.chat_url % message, cookies=self.chat_cookies, headers=self.headers)
-            self.chat_cookies = r.cookies
+            #r = requests.get(self.chat_url % message, cookies=self.chat_cookies, headers=self.headers)
+            r = self.get(self.chat_url % message)
+            #self.chat_cookies = r.cookies
         else:
             url = self.api_url % (SIMSIMI_KEY, message) 
             r = requests.get(url)
@@ -107,4 +139,6 @@ def handle(data, bot):
     return simsimi.chat(data['message'])
 
 if __name__ == '__main__':
-    print handle({'message': '最后一个问题'}, None)
+    pass
+    #print handle({'message': '最后一个问题'}, None)
+    #print handle({'message': '爱谁？'}, None)
