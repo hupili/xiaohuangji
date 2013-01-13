@@ -35,6 +35,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #       http://zh.wikipedia.org/wiki/%E8%A1%A8%E6%83%85%E7%AC%A6%E5%8F%B7
 
 import re
+import threading
 
 try:
     from settings import AI_ARITHMETIC_REGEX_TEST
@@ -56,8 +57,39 @@ try:
 except:
     AI_ARITHMETIC_MAX_LEN_REPLY = 50
 
+try:
+    from settings import AI_ARITHMETIC_EVAL_TIMEOUT
+except:
+    AI_ARITHMETIC_EVAL_TIMEOUT = 1.0 # Second
+
 REGEX_TEST = re.compile(AI_ARITHMETIC_REGEX_TEST)
 REGEX_HANDLE = re.compile(AI_ARITHMETIC_REGEX_HANDLE)
+
+class ChickCalculator(threading.Thread):
+    def __init__(self, exp):
+        threading.Thread.__init__(self)
+        self.exp = exp
+        self.result = None
+
+    def cal(self, exp):
+        try:
+            ans = str(eval(exp))
+            if len(ans) > AI_ARITHMETIC_MAX_LEN_REPLY:
+                return '这个数字太大了！鸡才懒得回你呢╮(︶︿︶)╭'
+            else:
+                return '不就是%s嘛。啦啦啦……我是计算鸡…… ＼（￣︶￣）／' % ans
+        except ZeroDivisionError:
+            return '你好笨啊！除零了。跟小鸡学下四则运算吧 （＃￣▽￣＃）'
+        except SyntaxError:
+            return '(´･д･`) 这明显有问题嘛！！你确定没写错？'
+        except Exception, e:
+            #TODO:
+            #    Any logging convention in this project? We should log the
+            #    error for further investigation
+            return '好复杂哦，计算鸡也不会了 ╮(︶︿︶)╭'
+
+    def run(self):
+        self.result = self.cal(self.exp)
 
 
 def test(data, bot):
@@ -72,26 +104,19 @@ def handle(data, bot):
         # tested by AI_ARITHMETIC_REGEX_TEST so we should be able to
         # read group()[0]. This is just to prevent your customized
         # regex from causing errors.
-        return '好复杂哦，计算鸡也不会了 ╮(︶︿︶)╭'
+        return '好复杂哦，计算鸡也不会了 ╮(︶︿︶)╭ （怎么会这样嘛）'
 
     if len(exp) > AI_ARITHMETIC_MAX_LEN_EXP:
         return '太长了……小鸡才不算呢。╮(︶︿︶)╭'
 
-    try:
-        ans = str(eval(exp))
-        if len(ans) > AI_ARITHMETIC_MAX_LEN_REPLY:
-            return '这个数字太大了！鸡才懒得回你呢╮(︶︿︶)╭'
-        else:
-            return '不就是%s嘛。啦啦啦……我是计算鸡…… ＼（￣︶￣）／' % ans
-    except ZeroDivisionError:
-        return '你好笨啊！除零了。跟小鸡学下四则运算吧 （＃￣▽￣＃）'
-    except SyntaxError:
-        return '(´･д･`) 这明显有问题嘛！！你确定没写错？'
-    except Exception, e:
-        #TODO:
-        #    Any logging convention in this project? We should log the
-        #    error for further investigation
-        return '好复杂哦，计算鸡也不会了 ╮(︶︿︶)╭'
+    cc = ChickCalculator(exp)
+    cc.start()
+    cc.join(AI_ARITHMETIC_EVAL_TIMEOUT)
+    r = cc.result
+    if r:
+        return r
+    else:
+        return '太难了，计算鸡都算不出来 ╮(︶︿︶)╭'
 
 
 def _ut_test(exp):
