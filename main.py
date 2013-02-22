@@ -31,124 +31,57 @@ from ntype import NTYPES
 from multiprocessing import Pool
 from urlparse import urlparse, parse_qsl
 from redis import Redis
-from pyquery import PyQuery
 from rq import Queue
 import requests
 import time
 import re
 import sys
-from controller import bots, reply, reply_direct
-
-# 匹配自己名字的正则
-self_match_pattern = re.compile('<a.*@小黄鸡.*</a>')
+from controller import bots, reply
 
 # 消息队列
 redis_conn = Redis()
 q = Queue(connection=redis_conn)
 
 
-# 解析一条通知的数据
-def parseNotification(notification):
-    dom = PyQuery(notification['content'])
-    # 回复/@你的用户的首页，回复的资源的地址
-    user_link, source_link = [a.get('href') for a in dom.find('a')]
-    source_query = urlparse(source_link).query
-    source_params = dict(parse_qsl(source_query))
-
-    ntype, source_id = map(int, notification['source'].split('-'))
-
-    return {
-        'ntype': ntype,
-        'source_id': source_id,
-        'owner_id': source_params['id'],
-        'doing_id': int(source_params['doingId']),
-        'reply_id': int(source_params.get('repliedId', 0))
-    }
-
-
 def handle(bot, notification):
-    data = parseNotification(notification)
-    print data
-
     print time.strftime('%Y-%m-%d %I:%M:%S', time.localtime(time.time())), 'got notification'
-    ntype = data['ntype']
-
-    if ntype in NTYPES.values():
+    if int(notification['type']) in NTYPES.values():
         # 进入消息队列
-        q.enqueue(reply, data)
+        q.enqueue(reply, notification)
 
-def handle_timeline(bot, data):
-    interest = {
-            '229446762': 1,
-            '472085551': 1,
-            '442901199': 1
-            }
-    if data['data']['owner_id'] in interest: #== '472085551':
-        print time.strftime('%Y-%m-%d %I:%M:%S', time.localtime(time.time())), 'got new status of interest'
-        q.enqueue(reply_direct, data)
 
 # 得到人人上的通知，处理之
 def process(bot, just_clear=False):
-    #print "process notification"
     notifications = bot.getNotifications()
 
     for notification in notifications:
-        # 如果已经处理过了，拜拜
-        if redis_conn.get(notification['nid']):
-            print 'duplicate', notification
-            return
+        notify_id = notification['notify_id']
 
-        # 如果只是要清理通知，拜拜
-        if just_clear:
-            print 'clear', notification
-            return
+        bot.removeNotification(notify_id)
 
-        bot.get(notification['rmessagecallback'])
+        # 如果已经处理过了, 或在执行清空消息脚本
+        if redis_conn.get(notify_id) or just_clear:
+            print 'clear' if just_clear else 'get duplicate notification', notification
+            return
 
         try:
-            redis_conn.set(notification['nid'], True)
+            redis_conn.set(notify_id, True)
             handle(bot, notification)
             redis_conn.incr('comment_count')
         except Exception, e:
-            print "Exception in 'process': %s" % e
-
-def process_timeline(bot):
-    print "process timeline"
-    h = bot.home_timeline()
-    #print len(h)
-    for s in h:
-        #print s
-        if redis_conn.get(s['data']['doing_id']):
-            #print "processed"
-            continue
-
-        try:
-            redis_conn.set(s['data']['doing_id'], True)
-            handle_timeline(bot, s)
-            redis_conn.incr('comment_count')
-        except Exception, e:
             print e
+
+        print ''
 
 
 def main():
     while True:
         try:
             map(process, bots)
-            map(process_timeline, bots)
-            import time
-            time.sleep(10)
         except KeyboardInterrupt:
             sys.exit()
         except Exception, e:
-            # The exception, 
-            #Traceback (most recent call last):
-            #  File "main.py", line 146, in <module>
-            #    main()
-            #  File "main.py", line 143, in main
-            #    raise e
-            #UnboundLocalError: local variable 'result' referenced before assignment
-            pass
-            #raise e
+            print e
 
 if __name__ == '__main__':
     main()

@@ -1,7 +1,7 @@
-#-*-coding:utf-8-*-
+# -*- coding: utf-8 -*-
 
 """
-Copyright (c) 2012 wong2 <wonderfuly@gmail.com>
+Copyright (c) 2013 wgx731 <wgx731@gmail.com>
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the
@@ -23,12 +23,36 @@ TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 """
 
+""" Airpollution plugin test
 
-from main import process
-from controller import bots
+    Test Cases for xiaohuangji airpollution plugin
+"""
 
-# 用来出错重启前，先清理出错时间段内的通知
+__author__ = 'wgx731'
+__copyright__ = 'Copyright (c) 2013 wgx731'
+__license__ = 'MIT'
+__version__ = '0.1'
+__maintainer__ = 'wgx731'
+__email__ = 'wgx731@gmail.com'
+__status__ = 'development'
 
-while True:
-    for bot in bots:
-        process(bot, True)
+from nose.tools import ok_
+from nose.tools import eq_
+from test_config import *
+from ..plugins import airpollution
+
+sys.path = [TEST_DIR] + sys.path
+
+
+class TestAirPollution(TestBase):
+
+    def setup(self):
+        pass
+
+    def teardown(self):
+        pass
+
+    #TODO: Add unit test for airpollution plugin
+    def test_airpollution_test_1(self):
+        eq_(False, airpollution.test({'message': 'wrong key'}, None), WRONG_KEY_WORD_ERROR)
+

@@ -2,6 +2,14 @@
 
 """
 Copyright (c) 2012 wong2 <wonderfuly@gmail.com>
+Copyright (c) 2012 hupili <hpl1989@gmail.com>
+
+Original Author:
+    Wong2 <wonderfuly@gmail.com>
+Changes Statement:
+    Changes made by Pili Hu <hpl1989@gmail.com> on
+    Jan 10 2013:
+        Support captcha.
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the
@@ -36,6 +44,7 @@ from ntype import NTYPES
 from encrypt import encryptString
 import pickle
 import sys
+import os
 
 
 class RenRen:
@@ -71,6 +80,12 @@ class RenRen:
         except Exception, e:
             return False
 
+    def _loginByCookie(self, cookie_str):
+        cookie_dict = dict([v.split('=', 1) for v in cookie_str.strip().split(';')])
+        self.session.cookies = requests.utils.cookiejar_from_dict(cookie_dict)
+
+        self.getToken()
+
     def loginByCookie(self, cookie_path):
         with open(cookie_path) as fp:
             cookie_str = fp.read()
@@ -95,9 +110,11 @@ class RenRen:
         key = self.getEncryptKey()
 
         if self.getShowCaptcha(email) == 1:
-            self.getICode()
-            print "Please input the code in file 'icode.jpg':"
+            fn = 'icode.%s.jpg' % os.getpid()
+            self.getICode(fn)
+            print "Please input the code in file '%s':" % fn
             icode = raw_input().strip()
+            os.remove(fn)
         else:
             icode = ''
 
@@ -126,21 +143,17 @@ class RenRen:
         else:
             print 'login error', r.text
 
-    def getICode(self):
-        # What's wrong with the following?
-        #r = self.get('http://icode.renren.com/getcode.do', \
-        #        data = {'t':'web_login','rnd':random.random()})
+    def getICode(self, fn):
         r = self.get("http://icode.renren.com/getcode.do?t=web_login&rnd=%s" % random.random())
         if r.status_code == 200 and r.raw.headers['content-type'] == 'image/jpeg':
-            with open('icode.jpg', 'wb') as f:
+            with open(fn, 'wb') as f:
                 for chunk in r.iter_content():
                     f.write(chunk)
         else:
             print "get icode failure"
-        
 
-    def getShowCaptcha(self, email = None):
-        r = self.post('http://www.renren.com/ajax/ShowCaptcha', data = {'email':email})
+    def getShowCaptcha(self, email=None):
+        r = self.post('http://www.renren.com/ajax/ShowCaptcha', data={'email': email})
         return r.json()
 
     def getEncryptKey(self):
@@ -228,13 +241,17 @@ class RenRen:
         return r.json()
 
     def getNotifications(self):
-        url = 'http://notify.renren.com/rmessage/get?getbybigtype=1&bigtype=1&limit=999&begin=0&view=16&random=' + str(random.random())
+        url = 'http://notify.renren.com/rmessage/get?getbybigtype=1&bigtype=1&limit=50&begin=0&view=17'
         r = self.get(url)
         try:
             result = json.loads(r.text, strict=False)
-        except:
-            print 'error'
-        return result 
+        except Exception, e:
+            print 'error', e
+            result = []
+        return result
+
+    def removeNotification(self, notify_id):
+        self.get('http://notify.renren.com/rmessage/remove?nl=' + str(notify_id))
 
     def getDoings(self, uid, page=0):
         url = 'http://status.renren.com/GetSomeomeDoingList.do?userId=%s&curpage=%d' % (str(uid), page)
@@ -259,7 +276,7 @@ class RenRen:
 
     def getCommentById(self, owner_id, doing_id, comment_id):
         comments = self.getDoingComments(owner_id, doing_id)
-        comment = filter(lambda comment: comment['id'] == comment_id, comments)
+        comment = filter(lambda comment: comment['id'] == int(comment_id), comments)
         return comment[0] if comment else None
 
     def addCommentGeneral(self, data):
@@ -333,13 +350,28 @@ class RenRen:
         return r.json()
 
     def addComment(self, data):
+        return {
+            'status': self.addStatusComment,
+            'album' : self.addAlbumComment,
+            'photo' : self.addPhotoComment,
+            'blog'  : self.addBlogComment,
+            'share' : self.addStatusComment,
+            'gossip': self.addGossip
+        }[data['type']](data)
+
+    def sendComment(self, url, payloads):
+        r = self.post(url, payloads)
+        r.raise_for_status()
+        return r.json()
+
+    # 评论状态
+    def addStatusComment(self, data):
         url = 'http://status.renren.com/feedcommentreply.do'
-        #url = 'http://page.renren.com/doing/reply'
 
         payloads = {
             't': 3,
             'rpLayer': 0,
-            'source': data['doing_id'],
+            'source': data['source_id'],
             'owner': data['owner_id'],
             'c': data['message']
         }
@@ -355,12 +387,85 @@ class RenRen:
 
         print payloads
         print self.email, 'going to send a comment: ', payloads['c']
+        return self.sendComment(url, payloads)
 
-        r = self.post(url, payloads)
-        r.raise_for_status()
+    # 回复留言
+    def addGossip(self, data):
+        url = 'http://gossip.renren.com/gossip.do'
+        
+        payloads = {
+            'id': data['owner_id'], 
+            'only_to_me': 1,
+            'mode': 'conversation',
+            'cc': data['author_id'],
+            'body': data['message'],
+            'ref':'http://gossip.renren.com/getgossiplist.do'
+        }
 
-        print 'comment sent', r.json()
-        return r.json()
+        return self.sendComment(url, payloads)
+
+    # 回复分享
+    def addShareComment(self, data):
+        url = 'http://share.renren.com/share/addComment.do'
+        
+        payloads = {
+            'comment': '回复%s：%s' % (data['author_name'].encode('utf-8'), data['message']),
+            'shareId' : data['source_id'],
+            'shareOwner': data['owner_id'],
+            'replyToCommentId': data['reply_id'],
+            'repetNo' : data['author_id']
+        }
+
+        return self.sendComment(url, payloads)
+
+    # 回复日志
+    def addBlogComment(self, data):
+        url = 'http://blog.renren.com/PostComment.do'
+        
+        payloads = {
+            'body': '回复%s：%s' % (data['author_name'].encode('utf-8'), data['message']),
+            'feedComment': 'true',
+            'guestName': '小黄鸡', 
+            'id' : data['source_id'],
+            'only_to_me': 0,
+            'owner': data['owner_id'],
+            'replyCommentId': data['reply_id'],
+            'to': data['author_id']
+        }
+
+        return self.sendComment(url, payloads)
+
+    # 回复相册
+    def addAlbumComment(self, data):
+        url = 'http://photo.renren.com/photo/%d/album-%d/comment' % (data['owner_id'], data['source_id'])
+        
+        payloads = {
+            'id': data['source_id'],
+            'only_to_me' : 'false',
+            'body': '回复%s：%s' % (data['author_name'].encode('utf-8'), data['message']),
+            'feedComment' : 'true', 
+            'owner' : data['owner_id'],
+            'replyCommentId' : data['reply_id'],
+            'to' : data['author_id']
+        }
+
+        return self.sendComment(url, payloads)
+
+    def addPhotoComment(self, data):
+        url = 'http://photo.renren.com/photo/%d/photo-%d/comment' % (data['owner_id'], data['source_id'])
+        
+        payloads = {
+            'guestName': '小黄鸡',
+            'body': '回复%s：%s' % (data['author_name'].encode('utf-8'), data['message']),
+            'feedComment' : 'true',
+            'owner' : data['owner_id'],
+            'realWhisper':'false',
+            'replyCommentId' : data['reply_id'],
+            'to' : data['author_id']
+        }
+
+        return self.sendComment(url, payloads)
+
 
     # 访问某人页面
     def visit(self, uid):

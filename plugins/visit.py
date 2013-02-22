@@ -23,12 +23,16 @@ TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 """
 
+# 求来访功能
 
-from main import process
-from controller import bots
+import random
 
-# 用来出错重启前，先清理出错时间段内的通知
+def test(data, bot):
+    return '求来访' in data['message']
 
-while True:
-    for bot in bots:
-        process(bot, True)
+def handle(data, bot):
+    bot.visit(data.get('author_id', data['owner_id']))
+    return random.choice(['我来也', '马上就到', '来啦', '在路上了'])
+
+if __name__ == '__main__':
+    print test({'message': '小鸡鸡求来访'})

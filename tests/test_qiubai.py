@@ -1,7 +1,7 @@
-#-*-coding:utf-8-*-
+# -*- coding: utf-8 -*-
 
 """
-Copyright (c) 2012 wong2 <wonderfuly@gmail.com>
+Copyright (c) 2013 Xiangyu Ye<yexiangyu1985@gmail.com>
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the
@@ -23,12 +23,34 @@ TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 """
 
+""" QiuBai plugin test
+"""
 
-from main import process
-from controller import bots
+from nose.tools import ok_
+from nose.tools import eq_
+from test_config import *
+from ..plugins import qiubai
 
-# 用来出错重启前，先清理出错时间段内的通知
+sys.path = [TEST_DIR] + sys.path
 
-while True:
-    for bot in bots:
-        process(bot, True)
+
+class TestQiuBai(TestBase):
+
+    def setup(self):
+        pass
+
+    def teardown(self):
+        pass
+
+    def test_qiubai_test_1(self):
+        eq_(False, qiubai.test({'message': '讲个感人的故事吧'}, None), WRONG_KEY_WORD_ERROR)
+
+    def test_qiubai_test_2(self):
+        eq_(True, qiubai.test({'message': '给我讲个笑话吧'}, None), WRONG_RESULT_ERROR)
+
+    def test_qiubai_test_3(self):
+        eq_(True, qiubai.test({'message': '给我讲个糗百上的故事吧'}, None), WRONG_RESULT_ERROR)
+
+    #TODO: Add better unit test
+    def test_qiubai_handle_1(self):
+        eq_(True, qiubai.handle({'message': '讲个笑话吧'}, None) != '', WRONG_RESULT_FORMAT_ERROR)

@@ -23,12 +23,23 @@ TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 """
 
+# 来膜拜
 
-from main import process
-from controller import bots
+import random
 
-# 用来出错重启前，先清理出错时间段内的通知
+def test(data, bot=None):
+    message = data['message']
+    for word in ['膜拜', 'orz']:
+        if word in message:
+            return True
+    return False
 
-while True:
-    for bot in bots:
-        process(bot, True)
+def handle(data, bot=None):
+    mobai_icon = '(mb)'
+    mobai_text = ' orz '
+    return mobai_icon * random.randrange(1, 10) + mobai_text * random.randrange(3)
+
+if __name__ == '__main__':
+    print test({'message': 'orz'})
+    print test({'message': 'rz'})
+    print handle({'message': '来膜拜'})

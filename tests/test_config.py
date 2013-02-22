@@ -1,7 +1,7 @@
 #-*-coding:utf-8-*-
 
 """
-Copyright (c) 2012 wong2 <wonderfuly@gmail.com>
+Copyright (c) 2012 wgx731 <wgx731@gmail.com>
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the
@@ -23,12 +23,40 @@ TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 """
 
+""" Nose test config file
 
-from main import process
-from controller import bots
+    config sys path for testing
+"""
 
-# 用来出错重启前，先清理出错时间段内的通知
+import os
+import glob
+import sys
 
-while True:
-    for bot in bots:
-        process(bot, True)
+
+TEST_DIR = os.path.abspath(os.path.dirname(__file__))
+MAIN_CODE_DIR = os.path.abspath(os.path.join(TEST_DIR, os.path.pardir))
+PLUGINS_CODE_DIR = os.path.abspath(os.path.join(MAIN_CODE_DIR, "plugins"))
+
+# Result refers to result returned by plugin
+WRONG_KEY_WORD_ERROR = "Missing or wrong keyword should not have result."
+WRONG_RESULT_ERROR = "Correct keyword should have result."
+WRONG_RESULT_FORMAT_ERROR = "Result should have correct format."
+
+
+class TestBase(object):
+
+    @classmethod
+    def clean_up(klass, path, wildcard):
+        os.chdir(path)
+        for rm_file in glob.glob(wildcard):
+            os.unlink(rm_file)
+
+    @classmethod
+    def setup_class(klass):
+        sys.stderr.write("\nRunning %s\n" % klass)
+
+    @classmethod
+    def teardown_class(klass):
+        klass.clean_up(TEST_DIR, "*.py?")
+        klass.clean_up(PLUGINS_CODE_DIR, "*.py?")
+        klass.clean_up(MAIN_CODE_DIR, "*.py?")

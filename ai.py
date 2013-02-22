@@ -26,25 +26,24 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 # 小黄鸡的ai，先自己尝试处理，没结果则交给simsimi
 
-import time
-from simsimi import SimSimi
+import pkgutil
+import plugins
 
-simi = SimSimi()
-
-
-def my_logic(data, text):
-    # 求来访
-    if '求来访' in text:
-        user_id = data.get('author_id', '') or data['owner_id']
-        bots[0].visit(user_id)
-        return '我来啦'
-
-    return None
+plugin_modules = []
+for plugin_name in plugins.__all__:
+    __import__('plugins.%s' % plugin_name)
+    plugin_modules.append(getattr(plugins, plugin_name))
 
 # some magic here
-def magic(text):
-    text = text.strip()
-    return simi.chat(text).encode('utf-8')
+def magic(data, bot=None):
+    for plugin_module in plugin_modules:
+        try:
+            if plugin_module.test(data, bot):
+                return plugin_module.handle(data, bot)
+        except:
+            continue
+
+    return '呵呵'
 
 if __name__ == '__main__':
-    print magic('/Q 今天天气怎么样？ /A 大雪')
+    print magic({'message': '今天天气怎么样?'})

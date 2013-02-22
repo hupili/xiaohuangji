@@ -1,7 +1,7 @@
-#-*-coding:utf-8-*-
+# -*- coding: utf-8 -*-
 
 """
-Copyright (c) 2012 wong2 <wonderfuly@gmail.com>
+Copyright (c) 2013 wgx731 <wgx731@gmail.com>
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the
@@ -23,12 +23,38 @@ TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 """
 
+""" Simsimi plugin test
 
-from main import process
-from controller import bots
+    Test Cases for xiaohuangji Simsimi plugin
+"""
 
-# 用来出错重启前，先清理出错时间段内的通知
+__author__ = 'wgx731'
+__copyright__ = 'Copyright (c) 2013 wgx731'
+__license__ = 'MIT'
+__version__ = '0.1'
+__maintainer__ = 'wgx731'
+__email__ = 'wgx731@gmail.com'
+__status__ = 'development'
 
-while True:
-    for bot in bots:
-        process(bot, True)
+from nose.tools import ok_
+from nose.tools import eq_
+from test_config import *
+from ..plugins import simsimi
+
+sys.path = [TEST_DIR] + sys.path
+
+
+class TestSimsimi(TestBase):
+
+    def setup(self):
+        pass
+
+    def teardown(self):
+        pass
+
+    def test_simsimi_test_1(self):
+        eq_(True, simsimi.test({'message': '最后一个问题'}, None), WRONG_RESULT_ERROR)
+
+    #TODO: add better unit test
+    def test_simsimi_handle_1(self):
+        eq_(True, len(simsimi.handle({'message': '最后一个问题'}, None)) > 0, WRONG_RESULT_FORMAT_ERROR)
