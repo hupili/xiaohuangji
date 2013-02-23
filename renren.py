@@ -471,6 +471,59 @@ class RenRen:
     def visit(self, uid):
         self.get('http://www.renren.com/' + str(uid) + '/profile')
 
+    def getNotiData(bot, data):
+        '''
+        This method is moved here from controller.py, in order to prevent 
+        over-importing other dependency of xiaohuangji. 
+
+        Note, 'bot' takes the position of 'self'. Same effect. We do not 
+        bother to modify it. 
+
+        :return: payloads, content
+
+        If it is the comment under the owner's status, it returns None, None
+        to prevent repeated reply. Upper layer should deal with this 
+        carefully. 
+        '''
+        #self_match_pattern = re.compile('@小黄鸡(\(601621937\))?')
+
+        ntype, content = int(data['type']), ''
+
+        payloads = {
+            'owner_id': data['owner'],
+            'source_id': data['source']
+        }
+
+        if ntype == NTYPES['at_in_status'] or ntype == NTYPES['reply_in_status_comment']:
+            owner_id, doing_id = data['owner'], data['doing_id']
+
+            payloads['type'] = 'status'
+
+            if ntype == NTYPES['at_in_status'] and data['replied_id'] == data['from']:
+                #content = self_match_pattern.sub('', data['doing_content'].encode('utf-8'))
+                content = data['doing_content'].encode('utf-8')
+            else:
+                # 防止在自己状态下@自己的时候有两条评论
+                if ntype == NTYPES['at_in_status'] and owner_id == '601621937':
+                    return None, None
+                reply_id = data['replied_id']
+                comment = bot.getCommentById(owner_id, doing_id, reply_id)
+                if comment:
+                    payloads.update({
+                        'author_id': comment['ownerId'],
+                        'author_name': comment['ubname'],
+                        'reply_id': reply_id
+                    })
+                    #content = extractContent(comment['replyContent'].encode('utf-8'))
+                    content = comment['replyContent'].encode('utf-8')
+                else:
+                    return None, None
+        else:
+            return None, None
+
+        return payloads, content.strip()
+
+
 if __name__ == '__main__':
     try:
         from my_accounts import accounts
