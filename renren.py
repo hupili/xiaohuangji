@@ -102,21 +102,8 @@ class RenRen:
             cookie_str = ';'.join([k + '=' + v for k, v in cookie_dict.iteritems()])
             fp.write(cookie_str)
 
-    def login(self, email, pwd):
-        self.email = email
-        if self.load():
-            return
-
+    def _login(self, email, pwd, icode=''):
         key = self.getEncryptKey()
-
-        if self.getShowCaptcha(email) == 1:
-            fn = 'icode.%s.jpg' % os.getpid()
-            self.getICode(fn)
-            print "Please input the code in file '%s':" % fn
-            icode = raw_input().strip()
-            os.remove(fn)
-        else:
-            icode = ''
 
         data = {
             'email': email,
@@ -142,6 +129,23 @@ class RenRen:
             self.save()
         else:
             print 'login error', r.text
+
+    def login(self, email, pwd):
+        self.email = email
+        if self.load():
+            return
+
+        if self.getShowCaptcha(email) == 1:
+            fn = 'icode.%s.jpg' % os.getpid()
+            self.getICode(fn)
+            print "Please input the code in file '%s':" % fn
+            icode = raw_input().strip()
+            os.remove(fn)
+        else:
+            icode = ''
+
+        self._login(email, pwd, icode)
+
 
     def getICode(self, fn):
         r = self.get("http://icode.renren.com/getcode.do?t=web_login&rnd=%s" % random.random())

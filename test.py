@@ -23,11 +23,11 @@ if __name__ == '__main__':
         print payloads
         print content
         payloads['message'] = 'test reply "%s"' % content
-        r = renren.addComment(payloads)
-        print r
-        if not 'code' in r:
-            print "failed"
-        elif r['code'] != 0:
-            print r['msg']
-        time.sleep(2)
+        #r = renren.addComment(payloads)
+        #print r
+        #if not 'code' in r:
+        #    print "failed"
+        #elif r['code'] != 0:
+        #    print r['msg']
+        #time.sleep(2)
 
